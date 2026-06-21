@@ -631,6 +631,18 @@ async def auth_me(authorization: Optional[str] = Header(None)):
         return {"user": None}
 
 
+@api.get("/auth/orders")
+async def auth_my_orders(authorization: Optional[str] = Header(None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(401, "Unauthorized")
+    try:
+        data = jwt.decode(authorization.split(" ", 1)[1], JWT_SECRET, algorithms=[JWT_ALGO])
+    except Exception:
+        raise HTTPException(401, "Invalid token")
+    docs = await db.orders.find({"user_email": data.get("email")}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    return docs
+
+
 @app.on_event("startup")
 async def startup():
     admin_email = "admin@lioneyo.com"

@@ -14,6 +14,7 @@ import Product from "@/pages/Product";
 import Checkout from "@/pages/Checkout";
 import OrderTracking from "@/pages/OrderTracking";
 import OrderSuccess from "@/pages/OrderSuccess";
+import Account from "@/pages/Account";
 import AdminLogin from "@/admin/AdminLogin";
 import AdminApp from "@/admin/AdminApp";
 
@@ -57,6 +58,7 @@ function Shell() {
         <Route path="/track" element={<OrderTracking />} />
         <Route path="/track/:orderNumber" element={<OrderTracking />} />
         <Route path="/order/success/:orderNumber" element={<OrderSuccess />} />
+        <Route path="/account" element={<Account />} />
       </Routes>
     </PublicShell>
   );

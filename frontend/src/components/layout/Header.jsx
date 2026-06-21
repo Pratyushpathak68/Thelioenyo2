@@ -49,6 +49,9 @@ export default function Header() {
             {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
           </button>
           <Link data-testid="nav-track" to="/track" className="hidden md:inline text-xs uppercase tracking-[0.18em] link-underline">Track</Link>
+          {user ? (
+            <Link data-testid="nav-account" to="/account" className="hidden md:inline text-xs uppercase tracking-[0.18em] link-underline">{user.name?.split(" ")[0] || "Account"}</Link>
+          ) : null}
           <button data-testid="open-cart" onClick={() => setCartOpen(true)} className="relative" aria-label="Open cart">
             <ShoppingBag size={20} />
             {cartCount > 0 && (

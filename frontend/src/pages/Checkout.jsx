@@ -4,6 +4,7 @@ import { useStore } from "@/contexts/StoreContext";
 import api from "@/services/api";
 import { formatINR, resolveAsset } from "@/utils/format";
 import { toast } from "sonner";
+import GoogleLoginButton from "@/components/GoogleLoginButton";
 
 export default function Checkout() {
   const { cart, subtotal, settings, clearCart, user } = useStore();
@@ -94,6 +95,8 @@ export default function Checkout() {
       {/* Form */}
       <div>
         <h1 className="font-display text-3xl md:text-4xl uppercase font-black tracking-tight">Checkout</h1>
+
+        <GoogleLoginButton onLogin={(u) => setAddr({ ...addr, full_name: u.name, email: u.email })} />
 
         <div className="mt-10">
           <div className="text-[10px] uppercase tracking-[0.3em] font-mono text-[var(--text-muted)] mb-4">01 — Shipping</div>
