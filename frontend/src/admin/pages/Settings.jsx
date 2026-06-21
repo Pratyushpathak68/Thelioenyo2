@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import api from "@/services/api";
 import { toast } from "sonner";
+import { resolveAsset } from "@/utils/format";
 
 const sections = [
   { id: "brand", label: "Brand & Logos", keys: ["logo_light", "logo_dark", "favicon", "site_title", "site_description", "site_keywords", "og_image"] },
@@ -105,7 +106,7 @@ export default function AdminSettings() {
                 <div className="text-[10px] uppercase tracking-[0.25em] font-mono text-[var(--text-muted)] mb-1">{k}</div>
                 <input className="w-full bg-transparent border-b border-[var(--border)] py-2 text-sm" value={val || ""} onChange={(e) => setS({ ...s, [k]: e.target.value })} placeholder="URL or upload below" />
                 <input type="file" accept="image/*" onChange={(e) => e.target.files[0] && upload(k, e.target.files[0])} className="text-xs mt-2" />
-                {val && <img src={val.startsWith("http") ? val : `${process.env.REACT_APP_BACKEND_URL}${val}`} alt="" className="mt-2 h-16 object-contain bg-[var(--surface)]" />}
+                {val && <img src={resolveAsset(val)} alt="" className="mt-2 h-16 object-contain bg-[var(--surface)]" />}
               </div>
             );
           }

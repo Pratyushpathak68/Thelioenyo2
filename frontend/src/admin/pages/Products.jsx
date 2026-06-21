@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
 import api from "@/services/api";
 import { toast } from "sonner";
-import { Plus, Copy, Trash2, Eye, EyeOff, Edit } from "lucide-react";
-import { formatINR } from "@/utils/format";
+import { Plus, Copy, Trash2, Eye, EyeOff, CreditCard as Edit } from "lucide-react";
+import { formatINR, resolveAsset } from "@/utils/format";
 
 const empty = { slug: "", name: "", description: "", price: 0, sale_price: null, images: [], collection_slug: "", sizes: [{size:"XS",stock:0},{size:"S",stock:0},{size:"M",stock:0},{size:"L",stock:0},{size:"XL",stock:0},{size:"XXL",stock:0}], fabric: "", gsm: "", fit: "", care: "", tags: [], is_featured: false, is_hidden: false, size_chart_image: "" };
 
@@ -85,7 +85,7 @@ export default function Products() {
           <div className="grid grid-cols-4 gap-2 mt-3">
             {(editing.images || []).map((src, i) => (
               <div key={i} className="relative">
-                <img src={src.startsWith("http") ? src : `${process.env.REACT_APP_BACKEND_URL}${src}`} alt="" className="w-full aspect-square object-cover" />
+                <img src={resolveAsset(src)} alt="" className="w-full aspect-square object-cover" />
                 <button onClick={() => setEditing({ ...editing, images: editing.images.filter((_, x) => x !== i) })} className="absolute top-1 right-1 bg-[var(--bg)] p-1"><Trash2 size={12} /></button>
               </div>
             ))}
@@ -94,7 +94,7 @@ export default function Products() {
 
         <Field label="Size Chart Image" className="mt-5">
           <input type="file" accept="image/*" onChange={(e) => e.target.files[0] && upload(e.target.files[0], "size_chart_image")} className="text-xs" />
-          {editing.size_chart_image && <img src={editing.size_chart_image.startsWith("http") ? editing.size_chart_image : `${process.env.REACT_APP_BACKEND_URL}${editing.size_chart_image}`} alt="" className="mt-3 max-w-xs" />}
+          {editing.size_chart_image && <img src={resolveAsset(editing.size_chart_image)} alt="" className="mt-3 max-w-xs" />}
         </Field>
 
         <div className="mt-5 flex gap-6 text-sm">
@@ -124,7 +124,7 @@ export default function Products() {
       <div className="mt-8 bg-[var(--bg)] border border-[var(--border)]">
         {items.map((p) => (
           <div key={p.id} className="flex items-center gap-4 p-4 border-b border-[var(--border)]">
-            <img src={p.images?.[0]?.startsWith("http") ? p.images[0] : `${process.env.REACT_APP_BACKEND_URL}${p.images?.[0] || ""}`} alt="" className="w-14 h-16 object-cover bg-[var(--surface)]" />
+            <img src={resolveAsset(p.images?.[0])} alt="" className="w-14 h-16 object-cover bg-[var(--surface)]" />
             <div className="flex-1">
               <div className="text-sm font-medium">{p.name} {p.is_hidden && <span className="text-xs text-[var(--text-muted)] ml-2">[Hidden]</span>}</div>
               <div className="text-xs text-[var(--text-muted)] font-mono mt-1">/{p.slug} • {p.collection_slug}</div>
