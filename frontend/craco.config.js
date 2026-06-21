@@ -61,40 +61,29 @@ let webpackConfig = {
 };
 
 webpackConfig.devServer = (devServerConfig) => {
-  // Add health check endpoints if enabled
-  if (config.enableHealthCheck && setupHealthEndpoints && healthPluginInstance) {
-    const originalSetupMiddlewares = devServerConfig.setupMiddlewares;
-
-    devServerConfig.setupMiddlewares = (middlewares, devServer) => {
-      // Call original setup if exists
-      if (originalSetupMiddlewares) {
-        middlewares = originalSetupMiddlewares(middlewares, devServer);
-      }
-
-      // Setup health endpoints
-      setupHealthEndpoints(devServer, healthPluginInstance);
-
-      return middlewares;
-    };
+  // Compat shim: react-scripts 5 emits webpack-dev-server v4 keys; v5 rejects unknown keys.
+  const onBefore = devServerConfig.onBeforeSetupMiddleware;
+  const onAfter = devServerConfig.onAfterSetupMiddleware;
+  if (devServerConfig.https !== undefined) {
+    devServerConfig.server = devServerConfig.https ? "https" : "http";
+    delete devServerConfig.https;
   }
-
+  delete devServerConfig.onBeforeSetupMiddleware;
+  delete devServerConfig.onAfterSetupMiddleware;
+  const originalSetup = devServerConfig.setupMiddlewares;
+  devServerConfig.setupMiddlewares = (middlewares, devServer) => {
+    if (onBefore) onBefore(devServer);
+    if (originalSetup) middlewares = originalSetup(middlewares, devServer);
+    if (config.enableHealthCheck && setupHealthEndpoints && healthPluginInstance) {
+      setupHealthEndpoints(devServer, healthPluginInstance);
+    }
+    if (onAfter) onAfter(devServer);
+    return middlewares;
+  };
+  devServerConfig.allowedHosts = "all";
   return devServerConfig;
 };
 
-// Wrap with visual edits (automatically adds babel plugin, dev server, and overlay in dev mode)
-if (isDevServer) {
-  try {
-    const { withVisualEdits } = require("@emergentbase/visual-edits/craco");
-    webpackConfig = withVisualEdits(webpackConfig);
-  } catch (err) {
-    if (err.code === 'MODULE_NOT_FOUND' && err.message.includes('@emergentbase/visual-edits/craco')) {
-      console.warn(
-        "[visual-edits] @emergentbase/visual-edits not installed — visual editing disabled."
-      );
-    } else {
-      throw err;
-    }
-  }
-}
+// Visual editing plugin removed per project requirements (no third-party branding/plugins).
 
 module.exports = webpackConfig;
