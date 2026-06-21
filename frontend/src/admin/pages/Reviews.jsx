@@ -5,7 +5,7 @@ import { Check, X, Trash2 } from "lucide-react";
 export default function Reviews() {
   const [items, setItems] = useState([]);
   const load = () => api.get("/admin/reviews").then(({ data }) => setItems(data));
-  useEffect(load, []);
+  useEffect(() => { load(); }, []);
 
   const approve = async (r, v) => { await api.put(`/admin/reviews/${r.id}`, { is_approved: v }); load(); };
   const del = async (r) => { if (!window.confirm("Delete?")) return; await api.delete(`/admin/reviews/${r.id}`); load(); };

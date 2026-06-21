@@ -8,7 +8,7 @@ export default function Collections() {
   const [editing, setEditing] = useState(null);
 
   const load = () => api.get("/collections").then(({ data }) => setItems(data));
-  useEffect(load, []);
+  useEffect(() => { load(); }, []);
 
   const save = async () => {
     try {
@@ -38,6 +38,16 @@ export default function Collections() {
             <textarea rows={3} className="w-full bg-transparent border border-[var(--border)] p-3" value={editing.description} onChange={(e) => setEditing({ ...editing, description: e.target.value })} />
           </div>
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={editing.is_featured} onChange={(e) => setEditing({ ...editing, is_featured: e.target.checked })} /> Featured on Homepage</label>
+          <div className="md:col-span-2 mt-2 pt-4 border-t border-[var(--border)]">
+            <div className="text-[10px] uppercase tracking-[0.3em] font-mono text-[var(--text-muted)] mb-3">SEO</div>
+            <div className="grid md:grid-cols-2 gap-4">
+              <Input label="Meta Title" value={editing.seo_title || ""} onChange={(v) => setEditing({ ...editing, seo_title: v })} />
+              <div>
+                <div className="text-[10px] uppercase tracking-[0.25em] font-mono text-[var(--text-muted)] mb-1">Meta Description</div>
+                <textarea rows={2} className="w-full bg-transparent border border-[var(--border)] p-3" value={editing.seo_description || ""} onChange={(e) => setEditing({ ...editing, seo_description: e.target.value })} />
+              </div>
+            </div>
+          </div>
           <div className="md:col-span-2 flex gap-2">
             <button onClick={save} className="bg-[var(--text)] text-[var(--bg)] px-5 py-2 text-xs uppercase tracking-[0.2em]">Save</button>
             <button onClick={() => setEditing(null)} className="border border-[var(--border)] px-5 py-2 text-xs uppercase tracking-[0.2em]">Cancel</button>

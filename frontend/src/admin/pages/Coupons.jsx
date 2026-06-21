@@ -9,7 +9,7 @@ export default function Coupons() {
   const [items, setItems] = useState([]);
   const [editing, setEditing] = useState(null);
   const load = () => api.get("/admin/coupons").then(({ data }) => setItems(data));
-  useEffect(load, []);
+  useEffect(() => { load(); }, []);
 
   const save = async () => {
     const body = { ...editing, discount_value: parseFloat(editing.discount_value), min_order: parseFloat(editing.min_order), max_discount: editing.max_discount ? parseFloat(editing.max_discount) : null, usage_limit: parseInt(editing.usage_limit) || 0 };

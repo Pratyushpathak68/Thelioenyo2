@@ -12,6 +12,9 @@ export default function Checkout() {
   const [coupon, setCoupon] = useState("");
   const [discount, setDiscount] = useState(0);
   const [appliedCode, setAppliedCode] = useState("");
+  const [referralInput, setReferralInput] = useState("");
+  const [referralDiscount, setReferralDiscount] = useState(0);
+  const [appliedReferral, setAppliedReferral] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("prepaid");
   const [addr, setAddr] = useState({ full_name: user?.name || "", phone: "", email: user?.email || "", line1: "", line2: "", city: "", state: "", pincode: "", country: "India" });
   const [loading, setLoading] = useState(false);
@@ -28,7 +31,7 @@ export default function Checkout() {
 
   const shipping = subtotal >= (settings?.free_shipping_threshold || 2999) ? 0 : (settings?.shipping_fee || 120);
   const codFee = paymentMethod === "partial_cod" ? (settings?.cod_fee || 0) : 0;
-  const total = Math.max(0, subtotal + shipping + codFee - discount);
+  const total = Math.max(0, subtotal + shipping + codFee - discount - referralDiscount);
   const advance = settings?.cod_advance || 150;
 
   const applyCoupon = async () => {
@@ -41,6 +44,19 @@ export default function Checkout() {
       toast.error(e?.response?.data?.detail || "Invalid coupon");
     }
   };
+
+  const applyReferral = async () => {
+    if (!referralInput) return;
+    try {
+      const { data } = await api.post("/referrals/validate", { code: referralInput, subtotal, email: addr.email });
+      setReferralDiscount(data.discount); setAppliedReferral(data.code);
+      toast.success(`Referral ${data.code} applied — ${formatINR(data.discount)} off`);
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Invalid referral code");
+    }
+  };
+
+  const removeReferral = () => { setReferralDiscount(0); setAppliedReferral(""); setReferralInput(""); };
 
   const placeOrder = async () => {
     for (const k of ["full_name", "phone", "email", "line1", "city", "state", "pincode"]) {
@@ -55,6 +71,7 @@ export default function Checkout() {
       const body = {
         items, subtotal, discount, shipping, cod_fee: codFee, total,
         payment_method: paymentMethod, coupon_code: appliedCode || null,
+        referral_code: appliedReferral || null, referral_discount: referralDiscount,
         shipping_address: addr, user_email: addr.email,
       };
       const { data } = await api.post("/orders/create", body);
@@ -173,9 +190,19 @@ export default function Checkout() {
           <button data-testid="coupon-apply" onClick={applyCoupon} className="bg-[var(--text)] text-[var(--bg)] px-4 text-xs uppercase tracking-[0.2em]">Apply</button>
         </div>
 
+        <div className="mt-3 flex gap-2">
+          <input data-testid="referral-input" value={referralInput} onChange={(e) => setReferralInput(e.target.value.toUpperCase())} placeholder="REFERRAL CODE (OPTIONAL)" className="flex-1 bg-transparent border border-[var(--border)] focus:border-[var(--text)] outline-none px-3 py-2 text-xs font-mono uppercase" />
+          {appliedReferral ? (
+            <button data-testid="referral-remove" onClick={removeReferral} className="border border-[var(--border)] px-4 text-xs uppercase tracking-[0.2em]">Remove</button>
+          ) : (
+            <button data-testid="referral-apply" onClick={applyReferral} className="bg-[var(--text)] text-[var(--bg)] px-4 text-xs uppercase tracking-[0.2em]">Apply</button>
+          )}
+        </div>
+
         <div className="mt-5 space-y-2 text-sm border-t border-[var(--border)] pt-4">
           <div className="flex justify-between"><span>Subtotal</span><span className="font-mono">{formatINR(subtotal)}</span></div>
           {discount > 0 && <div className="flex justify-between text-green-700 dark:text-green-400"><span>Discount ({appliedCode})</span><span className="font-mono">−{formatINR(discount)}</span></div>}
+          {referralDiscount > 0 && <div className="flex justify-between text-green-700 dark:text-green-400"><span>Referral ({appliedReferral})</span><span className="font-mono">−{formatINR(referralDiscount)}</span></div>}
           <div className="flex justify-between"><span>Shipping</span><span className="font-mono">{shipping === 0 ? "FREE" : formatINR(shipping)}</span></div>
           {codFee > 0 && <div className="flex justify-between"><span>COD Fee</span><span className="font-mono">{formatINR(codFee)}</span></div>}
           <div className="flex justify-between text-base font-medium border-t border-[var(--border)] pt-3"><span>Total</span><span className="font-mono">{formatINR(total)}</span></div>

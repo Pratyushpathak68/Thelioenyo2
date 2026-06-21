@@ -139,11 +139,14 @@ class Order(BaseModel):
     razorpay_order_id: Optional[str] = None
     razorpay_payment_id: Optional[str] = None
     coupon_code: Optional[str] = None
+    referral_code: Optional[str] = None
+    referral_discount: float = 0
     shipping_address: ShippingAddress
     user_email: Optional[str] = None
     status: str = "placed"  # placed | processing | packed | shipped | out_for_delivery | delivered | cancelled
     tracking_number: Optional[str] = None
     notes: str = ""
+    wa_notified: List[str] = []  # statuses already notified e.g. ["placed","shipped"]
     created_at: str = Field(default_factory=now_iso)
     updated_at: str = Field(default_factory=now_iso)
 
@@ -157,6 +160,8 @@ class OrderCreate(BaseModel):
     total: float
     payment_method: str
     coupon_code: Optional[str] = None
+    referral_code: Optional[str] = None
+    referral_discount: float = 0
     shipping_address: ShippingAddress
     user_email: Optional[str] = None
 
@@ -245,6 +250,18 @@ class Settings(BaseModel):
     whatsapp_order_template: str = "Hi! Your LIONEYO order #{order} has been placed successfully."
     whatsapp_shipped_template: str = "Your LIONEYO order #{order} has been shipped. Track: {tracking}"
     whatsapp_delivered_template: str = "Your LIONEYO order #{order} has been delivered. Thank you!"
+    whatsapp_cod_reminder_template: str = "Reminder: Your LIONEYO order #{order} has ₹{due} due on delivery. Keep cash ready."
+    # WhatsApp Cloud API (Meta) – optional; if not set, WA notifications are skipped silently
+    whatsapp_access_token: Optional[str] = None
+    whatsapp_phone_id: Optional[str] = None
+    # Optional 3rd-party gateway URL (CallMeBot / Wati / custom) – POST {phone, message}
+    whatsapp_gateway_url: Optional[str] = None
+    # Referral System (separate from coupons)
+    referral_enabled: bool = True
+    referral_discount_type: str = "percent"  # flat | percent
+    referral_discount_value: float = 10
+    referral_min_order: float = 0
+    referral_max_discount: Optional[float] = 500
     # Razorpay
     razorpay_key_id: Optional[str] = None
     razorpay_key_secret: Optional[str] = None

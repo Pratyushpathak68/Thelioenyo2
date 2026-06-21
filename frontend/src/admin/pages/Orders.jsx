@@ -10,7 +10,7 @@ export default function Orders() {
   const [expanded, setExpanded] = useState(null);
 
   const load = () => api.get("/admin/orders").then(({ data }) => setItems(data));
-  useEffect(load, []);
+  useEffect(() => { load(); }, []);
 
   const updateStatus = async (oid, status) => {
     await api.put(`/admin/orders/${oid}`, { status });

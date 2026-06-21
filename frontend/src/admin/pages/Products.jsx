@@ -101,6 +101,16 @@ export default function Products() {
           <label className="flex items-center gap-2"><input type="checkbox" checked={editing.is_featured} onChange={(e) => setEditing({ ...editing, is_featured: e.target.checked })} /> Featured</label>
           <label className="flex items-center gap-2"><input type="checkbox" checked={editing.is_hidden} onChange={(e) => setEditing({ ...editing, is_hidden: e.target.checked })} /> Hidden</label>
         </div>
+
+        <div className="mt-10 pt-6 border-t border-[var(--border)]">
+          <div className="text-[10px] uppercase tracking-[0.3em] font-mono text-[var(--text-muted)] mb-4">SEO</div>
+          <div className="grid md:grid-cols-2 gap-5">
+            <Field label="Meta Title"><input className="w-full bg-transparent border-b border-[var(--border)] py-2" value={editing.seo_title || ""} onChange={(e) => setEditing({ ...editing, seo_title: e.target.value })} placeholder={editing.name} /></Field>
+            <Field label="Meta Keywords"><input className="w-full bg-transparent border-b border-[var(--border)] py-2" value={editing.seo_keywords || ""} onChange={(e) => setEditing({ ...editing, seo_keywords: e.target.value })} placeholder="streetwear, oversized, premium" /></Field>
+            <Field label="OG Image URL" className="md:col-span-2"><input className="w-full bg-transparent border-b border-[var(--border)] py-2 text-sm" value={editing.og_image || ""} onChange={(e) => setEditing({ ...editing, og_image: e.target.value })} placeholder="Falls back to first product image" /></Field>
+            <Field label="Meta Description" className="md:col-span-2"><textarea rows={3} className="w-full bg-transparent border border-[var(--border)] p-3" value={editing.seo_description || ""} onChange={(e) => setEditing({ ...editing, seo_description: e.target.value })} placeholder="160-character summary for Google search results" /></Field>
+          </div>
+        </div>
       </div>
     );
   }

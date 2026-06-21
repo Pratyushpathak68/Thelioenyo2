@@ -93,6 +93,22 @@ async def admin_login(body: LoginInput):
     return {"token": token, "email": user["email"]}
 
 
+@api.post("/admin/change-password")
+async def admin_change_password(body: dict, admin=Depends(require_admin)):
+    current = body.get("current_password")
+    new = body.get("new_password")
+    if not current or not new or len(new) < 8:
+        raise HTTPException(400, "new_password must be at least 8 characters")
+    user = await db.admins.find_one({"email": admin["email"]}, {"_id": 0})
+    if not user or not verify_password(current, user["password_hash"]):
+        raise HTTPException(401, "Current password incorrect")
+    await db.admins.update_one(
+        {"email": admin["email"]},
+        {"$set": {"password_hash": hash_password(new), "updated_at": now_iso()}}
+    )
+    return {"ok": True}
+
+
 @api.get("/admin/me")
 async def admin_me(admin=Depends(require_admin)):
     return {"email": admin["email"], "role": admin["role"]}
@@ -256,6 +272,38 @@ async def validate_coupon(payload: dict):
     return {"code": code, "discount": round(discount, 2), "discount_type": c["discount_type"]}
 
 
+# ===================== Referral System =====================
+@api.post("/referrals/validate")
+async def validate_referral(payload: dict):
+    code = (payload.get("code") or "").upper().strip()
+    subtotal = float(payload.get("subtotal", 0))
+    email = (payload.get("email") or "").lower().strip()
+    if not code:
+        raise HTTPException(400, "Code required")
+    settings = await get_settings_doc()
+    if not settings.get("referral_enabled", True):
+        raise HTTPException(400, "Referrals disabled")
+    if subtotal < float(settings.get("referral_min_order", 0)):
+        raise HTTPException(400, f"Minimum order \u20b9{settings.get('referral_min_order', 0)}")
+    referrer = await db.users.find_one({"referral_code": code}, {"_id": 0})
+    if not referrer:
+        raise HTTPException(404, "Invalid referral code")
+    if email and referrer.get("email", "").lower() == email:
+        raise HTTPException(400, "Cannot use your own referral code")
+    d_type = settings.get("referral_discount_type", "percent")
+    d_val = float(settings.get("referral_discount_value", 10))
+    discount = d_val if d_type == "flat" else (subtotal * d_val / 100)
+    max_d = settings.get("referral_max_discount")
+    if max_d:
+        discount = min(discount, float(max_d))
+    return {
+        "code": code,
+        "discount": round(discount, 2),
+        "discount_type": d_type,
+        "referrer_email": referrer.get("email"),
+    }
+
+
 @api.get("/admin/coupons")
 async def admin_list_coupons(admin=Depends(require_admin)):
     return await db.coupons.find({}, {"_id": 0}).to_list(500)
@@ -330,6 +378,118 @@ def _gen_order_number() -> str:
     return f"LE{int(time.time())}{secrets.token_hex(2).upper()}"
 
 
+# ===================== WhatsApp helper =====================
+def _normalize_phone(raw: str) -> str:
+    """Normalize Indian phone to E.164 (without leading +) for WA Cloud API."""
+    s = "".join(ch for ch in (raw or "") if ch.isdigit())
+    if not s:
+        return ""
+    if len(s) == 10:
+        return "91" + s
+    if s.startswith("0") and len(s) == 11:
+        return "91" + s[1:]
+    if s.startswith("91") and len(s) == 12:
+        return s
+    return s
+
+
+async def _send_whatsapp(phone: str, message: str) -> dict:
+    """Send WhatsApp message via Meta Cloud API or gateway URL.
+
+    Priority:
+      1. Meta WA Cloud API (whatsapp_access_token + whatsapp_phone_id)
+      2. Generic gateway POST (whatsapp_gateway_url)
+      3. Skip silently (returns {"ok": False, "skipped": True})
+    """
+    if not phone or not message:
+        return {"ok": False, "skipped": True, "reason": "no_phone_or_message"}
+    settings = await get_settings_doc()
+    to = _normalize_phone(phone)
+    if not to:
+        return {"ok": False, "skipped": True, "reason": "bad_phone"}
+
+    token = settings.get("whatsapp_access_token")
+    phone_id = settings.get("whatsapp_phone_id")
+    if token and phone_id:
+        try:
+            async with httpx.AsyncClient(timeout=10) as c:
+                resp = await c.post(
+                    f"https://graph.facebook.com/v20.0/{phone_id}/messages",
+                    headers={
+                        "Authorization": f"Bearer {token}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "messaging_product": "whatsapp",
+                        "to": to,
+                        "type": "text",
+                        "text": {"body": message},
+                    },
+                )
+            if resp.status_code in (200, 201):
+                return {"ok": True, "provider": "meta", "response": resp.json()}
+            log.warning(f"WA Meta send failed {resp.status_code}: {resp.text[:300]}")
+        except Exception as e:
+            log.warning(f"WA Meta exception: {e}")
+
+    gateway = settings.get("whatsapp_gateway_url")
+    if gateway:
+        try:
+            async with httpx.AsyncClient(timeout=10) as c:
+                resp = await c.post(gateway, json={"phone": to, "message": message})
+            return {"ok": resp.status_code < 400, "provider": "gateway", "status": resp.status_code}
+        except Exception as e:
+            log.warning(f"WA gateway exception: {e}")
+
+    return {"ok": False, "skipped": True, "reason": "not_configured"}
+
+
+def _wa_template(template: str, order: dict, extra: dict | None = None) -> str:
+    """Replace {order}, {tracking}, {due}, {name} placeholders."""
+    data = {
+        "order": order.get("order_number", ""),
+        "tracking": order.get("tracking_number") or "—",
+        "due": str(order.get("amount_due", 0)),
+        "name": (order.get("shipping_address") or {}).get("full_name", ""),
+    }
+    if extra:
+        data.update(extra)
+    out = template or ""
+    for k, v in data.items():
+        out = out.replace("{" + k + "}", str(v))
+    return out
+
+
+async def _notify_whatsapp(order: dict, event: str) -> None:
+    """Fire-and-forget WhatsApp notification for an order event.
+
+    event: 'placed' | 'shipped' | 'delivered' | 'cod_reminder'
+    Idempotent: tracks already-sent events in order.wa_notified.
+    """
+    if not order:
+        return
+    already = set(order.get("wa_notified") or [])
+    if event in already:
+        return
+    settings = await get_settings_doc()
+    template_key = {
+        "placed": "whatsapp_order_template",
+        "shipped": "whatsapp_shipped_template",
+        "delivered": "whatsapp_delivered_template",
+        "cod_reminder": "whatsapp_cod_reminder_template",
+    }.get(event)
+    if not template_key:
+        return
+    msg = _wa_template(settings.get(template_key, ""), order)
+    phone = (order.get("shipping_address") or {}).get("phone")
+    result = await _send_whatsapp(phone, msg)
+    if result.get("ok"):
+        await db.orders.update_one(
+            {"id": order["id"]},
+            {"$addToSet": {"wa_notified": event}, "$set": {"updated_at": now_iso()}}
+        )
+
+
 @api.post("/orders/create")
 async def create_order(body: OrderCreate):
     settings = await get_settings_doc()
@@ -349,6 +509,7 @@ async def create_order(body: OrderCreate):
         shipping=body.shipping, cod_fee=body.cod_fee,
         total=body.total, amount_paid=0, amount_due=amount_due,
         payment_method=body.payment_method, coupon_code=body.coupon_code,
+        referral_code=body.referral_code, referral_discount=body.referral_discount,
         shipping_address=body.shipping_address,
         user_email=body.user_email or body.shipping_address.email,
     )
@@ -427,6 +588,21 @@ async def verify_payment(payload: dict):
     if order.get("coupon_code"):
         await db.coupons.update_one({"code": order["coupon_code"]}, {"$inc": {"used_count": 1}})
 
+    if order.get("referral_code"):
+        await db.referral_uses.insert_one({
+            "id": gen_id(),
+            "referral_code": order["referral_code"],
+            "order_id": order["id"],
+            "order_number": order["order_number"],
+            "referee_email": order.get("user_email"),
+            "discount": order.get("referral_discount", 0),
+            "created_at": now_iso(),
+        })
+        await db.users.update_one(
+            {"referral_code": order["referral_code"]},
+            {"$inc": {"referral_count": 1, "referral_earnings": float(order.get("referral_discount", 0))}}
+        )
+
     hook = settings.get("google_sheets_webhook")
     if hook:
         try:
@@ -435,7 +611,83 @@ async def verify_payment(payload: dict):
         except Exception as e:
             log.warning(f"Sheets sync failed: {e}")
 
+    # Fire WhatsApp order placed
+    refreshed = await db.orders.find_one({"id": order["id"]}, {"_id": 0})
+    try:
+        await _notify_whatsapp(refreshed, "placed")
+        if refreshed.get("payment_method") == "partial_cod":
+            await _notify_whatsapp(refreshed, "cod_reminder")
+    except Exception as e:
+        log.warning(f"WA notify failed: {e}")
+
     return {"ok": True, "order_number": order["order_number"]}
+
+
+# ===================== Razorpay Webhook =====================
+@api.post("/razorpay/webhook")
+async def razorpay_webhook(request: Request):
+    """Razorpay event webhook. Configure in Razorpay dashboard:
+    URL: {PUBLIC_BACKEND_URL}/api/razorpay/webhook
+    Events: payment.captured, payment.failed, order.paid
+    Set the same secret in admin settings -> razorpay_webhook_secret.
+    """
+    body = await request.body()
+    signature = request.headers.get("x-razorpay-signature") or ""
+    settings = await get_settings_doc()
+    secret = settings.get("razorpay_webhook_secret") or os.environ.get("RAZORPAY_WEBHOOK_SECRET")
+    if not secret:
+        raise HTTPException(500, "Webhook secret not configured")
+    digest = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(digest, signature):
+        log.warning("Razorpay webhook signature mismatch")
+        raise HTTPException(400, "Invalid signature")
+
+    try:
+        import json as _json
+        evt = _json.loads(body.decode())
+    except Exception:
+        raise HTTPException(400, "Bad JSON")
+
+    event = evt.get("event", "")
+    payload = evt.get("payload", {})
+    payment = (payload.get("payment") or {}).get("entity") or {}
+    rzp_order_id = payment.get("order_id")
+    if not rzp_order_id:
+        return {"ok": True, "ignored": True}
+
+    order = await db.orders.find_one({"razorpay_order_id": rzp_order_id}, {"_id": 0})
+    if not order:
+        log.info(f"Webhook for unknown order {rzp_order_id}")
+        return {"ok": True, "unknown": True}
+
+    update: dict = {"updated_at": now_iso()}
+    if event in ("payment.captured", "order.paid"):
+        if order["payment_method"] == "partial_cod":
+            paid = float(settings.get("cod_advance", 150))
+            update["payment_status"] = "partial"
+        else:
+            paid = order["total"]
+            update["payment_status"] = "paid"
+        update["razorpay_payment_id"] = payment.get("id")
+        update["amount_paid"] = paid
+        update["amount_due"] = order["total"] - paid
+        if order.get("status") == "placed":
+            update["status"] = "processing"
+    elif event == "payment.failed":
+        update["payment_status"] = "failed"
+
+    await db.orders.update_one({"id": order["id"]}, {"$set": update})
+
+    if update.get("payment_status") in ("paid", "partial"):
+        refreshed = await db.orders.find_one({"id": order["id"]}, {"_id": 0})
+        try:
+            await _notify_whatsapp(refreshed, "placed")
+            if refreshed.get("payment_method") == "partial_cod":
+                await _notify_whatsapp(refreshed, "cod_reminder")
+        except Exception as e:
+            log.warning(f"WA notify (webhook) failed: {e}")
+
+    return {"ok": True, "event": event}
 
 
 @api.get("/orders/track/{order_number}")
@@ -456,7 +708,43 @@ async def admin_update_order(oid: str, body: dict, admin=Depends(require_admin))
     body.pop("id", None); body.pop("_id", None)
     body["updated_at"] = now_iso()
     await db.orders.update_one({"id": oid}, {"$set": body})
-    return await db.orders.find_one({"id": oid}, {"_id": 0})
+    refreshed = await db.orders.find_one({"id": oid}, {"_id": 0})
+    # Auto WA on status transitions
+    new_status = body.get("status")
+    if new_status in ("shipped", "delivered") and refreshed:
+        try:
+            await _notify_whatsapp(refreshed, new_status)
+        except Exception as e:
+            log.warning(f"WA notify on status {new_status} failed: {e}")
+    return refreshed
+
+
+@api.post("/admin/orders/{oid}/notify-whatsapp")
+async def admin_resend_whatsapp(oid: str, payload: dict, admin=Depends(require_admin)):
+    """Manually trigger a WhatsApp message for an order. body: {event: 'placed'|'shipped'|'delivered'|'cod_reminder', force: bool}"""
+    event = payload.get("event", "placed")
+    force = bool(payload.get("force", True))
+    order = await db.orders.find_one({"id": oid}, {"_id": 0})
+    if not order:
+        raise HTTPException(404, "Order not found")
+    if force:
+        await db.orders.update_one({"id": oid}, {"$pull": {"wa_notified": event}})
+        order = await db.orders.find_one({"id": oid}, {"_id": 0})
+    await _notify_whatsapp(order, event)
+    return {"ok": True}
+
+
+@api.get("/admin/referrals")
+async def admin_referrals(admin=Depends(require_admin)):
+    uses = await db.referral_uses.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    # Aggregate stats per referral code
+    stats: dict = {}
+    for u in uses:
+        c = u.get("referral_code") or "?"
+        s = stats.setdefault(c, {"code": c, "uses": 0, "total_discount": 0.0})
+        s["uses"] += 1
+        s["total_discount"] += float(u.get("discount", 0))
+    return {"uses": uses, "stats": list(stats.values())}
 
 
 @api.get("/wishlist")
@@ -523,10 +811,20 @@ async def analytics(admin=Depends(require_admin)):
     total_products = await db.products.count_documents({})
     total_customers = len(await db.orders.distinct("user_email"))
 
+    # Referral stats
+    ref_pipeline = [
+        {"$group": {"_id": "$referral_code", "uses": {"$sum": 1}, "total_discount": {"$sum": "$discount"}}},
+        {"$sort": {"uses": -1}}, {"$limit": 10},
+    ]
+    top_referrers = await db.referral_uses.aggregate(ref_pipeline).to_list(10)
+    total_ref_uses = await db.referral_uses.count_documents({})
+
     return {
         "total_orders": total_orders, "paid_orders": paid_orders, "revenue": revenue,
         "total_products": total_products, "total_customers": total_customers,
         "top_viewed": top_viewed, "top_sold": top_sold,
+        "top_referrers": [{"code": r["_id"], "uses": r["uses"], "total_discount": r["total_discount"]} for r in top_referrers if r.get("_id")],
+        "total_referral_uses": total_ref_uses,
     }
 
 
@@ -676,6 +974,14 @@ async def startup():
         s.hero_image = "https://images.pexels.com/photos/10469630/pexels-photo-10469630.jpeg"
         await db.settings.insert_one(s.model_dump())
         log.info("Seeded settings")
+    else:
+        # Backfill new settings fields on existing installations
+        defaults = Settings().model_dump()
+        existing = await db.settings.find_one({"id": "global"}, {"_id": 0})
+        missing = {k: v for k, v in defaults.items() if k not in existing}
+        if missing:
+            await db.settings.update_one({"id": "global"}, {"$set": missing})
+            log.info(f"Backfilled settings keys: {list(missing.keys())}")
 
     if await db.products.count_documents({}) == 0:
         from seed import seed_data
