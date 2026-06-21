@@ -1,0 +1,116 @@
+{
+  "project_name": "THE LIONEYO",
+  "theme": {
+    "primary_mode": "light",
+    "support_mode": "dark",
+    "archetype": "5 (Luxury) + 4 (Swiss/High-Contrast)",
+    "mood": "Luxury, Streetwear, Premium, Confident, Modern, Minimal, Bold, Fashion Forward",
+    "spacing_scale": "Premium Generous (p-8 to p-32 depending on screen size)",
+    "border_radius": "Sharp/Minimal (0px to 4px maximum)",
+    "container_width": "Large, edge-to-edge for media, max-w-screen-2xl for content"
+  },
+  "colors": {
+    "light": {
+      "background": "#FFFFFF",
+      "surface": "#F5F5F5",
+      "surface_hover": "#EAEAEA",
+      "text_primary": "#0A0A0A",
+      "text_secondary": "#525252",
+      "border": "#E5E5E5",
+      "brand_primary": "#000000",
+      "brand_accent": "#171717",
+      "error": "#EF4444",
+      "success": "#10B981"
+    },
+    "dark": {
+      "background": "#0A0A0A",
+      "surface": "#171717",
+      "surface_hover": "#262626",
+      "text_primary": "#FAFAFA",
+      "text_secondary": "#A3A3A3",
+      "border": "#262626",
+      "brand_primary": "#FFFFFF",
+      "brand_accent": "#FAFAFA",
+      "error": "#EF4444",
+      "success": "#10B981"
+    }
+  },
+  "typography": {
+    "heading_font": "Cabinet Grotesk",
+    "heading_fallback": "Oswald, sans-serif",
+    "body_font": "Satoshi",
+    "body_fallback": "Inter, sans-serif",
+    "accent_font": "Azeret Mono",
+    "scales": {
+      "h1": "text-5xl md:text-6xl+ tracking-tighter uppercase font-black",
+      "h2": "text-3xl md:text-4xl tracking-tight uppercase font-bold",
+      "h3": "text-xl md:text-2xl tracking-tight font-semibold",
+      "body": "text-base tracking-normal font-normal",
+      "small": "text-sm tracking-wide text-secondary",
+      "overline": "text-xs tracking-[0.2em] uppercase font-semibold"
+    }
+  },
+  "layout": {
+    "navigation": "Sticky header. Glassmorphism or solid stark background on scroll. Minimalist text links. Icons for search/cart. Logo prominently centered or left-aligned.",
+    "hero": "Full height (h-screen) image/video background. Minimal text overlay (bg-black/30 maximum if needed for contrast), large typography, subtle scroll indicator.",
+    "collections_grid": "Asymmetrical or bento grid. Edge-to-edge images with hover text reveal or stark labels underneath. No visible card boundaries.",
+    "product_listing": "3 cols desktop, 2 tablet, 1 mobile. No borders. Image is 85% of card height. Text left-aligned below image. Hover: Swap image, show quick add.",
+    "product_detail": "Split screen desktop: Left side scrollable large images (2-grid or stack), Right side sticky product info. Minimalist accordion for details.",
+    "cart_checkout": "Slide-out drawer for cart. Clean, single-column checkout or stark split-screen.",
+    "admin_panel": "Dense, utility-first layout. Sidebar navigation. High contrast data tables. Monochromatic with subtle borders."
+  },
+  "components": {
+    "buttons": {
+      "primary": "bg-brand_primary text-white dark:text-black uppercase tracking-widest text-xs py-4 px-8 hover:opacity-80 transition-opacity rounded-none",
+      "secondary": "border border-brand_primary text-brand_primary uppercase tracking-widest text-xs py-4 px-8 hover:bg-brand_primary hover:text-white dark:hover:text-black transition-all rounded-none",
+      "link": "underline underline-offset-4 decoration-1 hover:decoration-2 transition-all uppercase tracking-widest text-xs"
+    },
+    "inputs": "Border bottom only (border-b border-border) rounded-none bg-transparent focus:ring-0 focus:border-brand_primary pb-2 text-base",
+    "cards": "No visible card wrapper. Product cards are just image + text layout. Use pure HTML/Tailwind.",
+    "modals": "Backdrop blur, stark white/black box, no rounded corners. (Shadcn Dialog customized)",
+    "accordions": "Border top/bottom only, minimal icon (plus/minus), uppercase headings. (Shadcn Accordion customized)"
+  },
+  "animations": {
+    "page_transition": "Fade in, slight scale up (Framer Motion).",
+    "hover_product": "Image scales slightly (scale-105) inside overflow-hidden wrapper, or second image cross-fades.",
+    "hover_text": "Opacity shift or slight x-translate.",
+    "scroll": "Use Lenis for smooth scrolling. Elements fade/slide up on enter."
+  },
+  "media_assets": {
+    "logo": {
+      "description": "THE LIONEYO (Text + Wing Motif) - assume local assets provided"
+    },
+    "images": {
+      "hero": [
+        "https://images.pexels.com/photos/10469630/pexels-photo-10469630.jpeg",
+        "https://images.unsplash.com/photo-1510853851847-5c02796e8c8a"
+      ],
+      "collections": [
+        "https://images.pexels.com/photos/30130732/pexels-photo-30130732.jpeg",
+        "https://images.unsplash.com/photo-1532332248682-206cc786359f"
+      ],
+      "products": [
+        "https://images.unsplash.com/photo-1564557287817-3785e38ec1f5",
+        "https://images.unsplash.com/photo-1609873814058-a8928924184a",
+        "https://images.unsplash.com/photo-1680292783974-a9a336c10366",
+        "https://images.unsplash.com/photo-1467043237213-65f2da53396f",
+        "https://images.unsplash.com/photo-1603805752838-aa579d77da72"
+      ]
+    }
+  },
+  "testing": {
+    "data_testid_rules": "All interactive elements (buttons, links, inputs, dialogs, accordions, tabs) MUST have a `data-testid` attribute in kebab-case. Example: `data-testid='add-to-cart-button'`."
+  },
+  "instructions_to_main_agent": [
+    "Strictly follow the color palette. Pure white/black with high contrast. NO generic blues/greens.",
+    "Use Cabinet Grotesk for headings and Satoshi for body text (import via Fontshare). If unavailable, use Oswald and Inter.",
+    "Implement Lenis for smooth scrolling.",
+    "For the homepage, build a minimalist edge-to-edge experience. Do NOT use Shadcn Card components for the product grid; build pure HTML/Tailwind for maximum aesthetic control.",
+    "Implement Shadcn for interactive logic (Modals, Selects, Accordions) but strip the default rounded styling to 0px. Make them look raw and editorial.",
+    "Every actionable element MUST include a `data-testid`.",
+    "Ensure dark mode support is implemented cleanly using Tailwind's `dark:` classes.",
+    "For Product Page (PDP): Mimic Overlays/Represent with large stacked imagery on the left, sticky details on the right.",
+    "Ensure hover states use image swapping or subtle scaling.",
+    "Admin panel should use Shadcn extensively for tables, forms, and tabs, keeping a dense, utility-first layout."
+  ]
+}
