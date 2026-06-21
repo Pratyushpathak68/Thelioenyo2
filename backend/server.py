@@ -230,6 +230,7 @@ async def duplicate_product(pid: str, admin=Depends(require_admin)):
     doc["is_hidden"] = True
     doc["created_at"] = now_iso(); doc["updated_at"] = now_iso()
     await db.products.insert_one(doc)
+    doc.pop("_id", None)
     return doc
 
 
@@ -530,7 +531,16 @@ async def analytics(admin=Depends(require_admin)):
 
 
 @app.get("/sitemap.xml")
-async def sitemap():
+async def sitemap_root():
+    return await _sitemap()
+
+
+@api.get("/sitemap.xml")
+async def sitemap_api():
+    return await _sitemap()
+
+
+async def _sitemap():
     base = os.environ.get("PUBLIC_SITE_URL", "https://lioneyo.com").rstrip("/")
     products = await db.products.find({"is_hidden": False}, {"_id": 0, "slug": 1}).to_list(2000)
     collections = await db.collections.find({}, {"_id": 0, "slug": 1}).to_list(200)
@@ -545,7 +555,16 @@ async def sitemap():
 
 
 @app.get("/robots.txt")
-async def robots_txt():
+async def robots_root():
+    return await _robots()
+
+
+@api.get("/robots.txt")
+async def robots_api():
+    return await _robots()
+
+
+async def _robots():
     base = os.environ.get("PUBLIC_SITE_URL", "https://lioneyo.com").rstrip("/")
     return Response(content=f"User-agent: *\nAllow: /\nDisallow: /admin\nSitemap: {base}/sitemap.xml\n", media_type="text/plain")
 
