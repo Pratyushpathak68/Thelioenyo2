@@ -651,6 +651,10 @@ async def startup():
         s.r2_account_id = os.environ.get("CLOUDFLARE_ACCOUNT_ID")
         s.r2_endpoint = os.environ.get("CLOUDFLARE_R2_ENDPOINT")
         s.r2_bucket = "lioneyo-media"
+        s.r2_public_url = "https://pub-c83a963739cb4b18b24a5ed3736bc7e9.r2.dev"
+        s.hero_heading = "IGNITE YOUR STYLE"
+        s.hero_subheading = "Premium streetwear engineered for those who move differently. Heavyweight fabrics. Limited drops."
+        s.hero_image = "https://images.unsplash.com/photo-1542838686-37da4a9fd1b3?w=1920&q=80"
         s.announcement_messages = [
             "\u2726 500+ Happy Customers",
             "\u2726 Free Shipping Above \u20b92999",
