@@ -43,7 +43,9 @@ log = logging.getLogger("lioneyo")
 
 UPLOAD_DIR = ROOT_DIR / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)
-app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
+# Mount under /api/uploads so Kubernetes ingress routes it to backend.
+# (Ingress only forwards /api/* to the backend; bare /uploads would hit the frontend and 404.)
+app.mount("/api/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
 
 
 def hash_password(pw: str) -> str:
@@ -192,6 +194,13 @@ async def list_products(collection: Optional[str] = None, featured: Optional[boo
     return docs
 
 
+@api.get("/admin/products")
+async def admin_list_products(admin=Depends(require_admin), limit: int = 1000):
+    """Admin sees ALL products including hidden + duplicated."""
+    docs = await db.products.find({}, {"_id": 0}).sort("created_at", -1).limit(limit).to_list(limit)
+    return docs
+
+
 @api.get("/products/{slug}")
 async def get_product(slug: str):
     doc = await db.products.find_one({"slug": slug}, {"_id": 0})
@@ -214,6 +223,18 @@ async def related_products(slug: str):
 
 @api.post("/admin/products")
 async def create_product(body: ProductCreate, admin=Depends(require_admin)):
+    # Validate slug — must be non-empty url-safe
+    slug = (body.slug or "").strip().lower()
+    if not slug:
+        raise HTTPException(400, "Slug cannot be empty")
+    import re
+    if not re.match(r"^[a-z0-9][a-z0-9\-]*$", slug):
+        raise HTTPException(400, "Slug must contain only lowercase letters, digits and hyphens")
+    body.slug = slug
+    if not (body.name or "").strip():
+        raise HTTPException(400, "Name is required")
+    if body.price is None or float(body.price) < 0:
+        raise HTTPException(400, "Price must be a non-negative number")
     if await db.products.find_one({"slug": body.slug}):
         raise HTTPException(400, "Slug exists")
     p = Product(**body.model_dump())
@@ -794,7 +815,7 @@ async def upload_file(file: UploadFile = File(...), admin=Depends(require_admin)
         except Exception as e:
             log.warning(f"R2 upload failed, falling back to local: {e}")
 
-    return {"url": f"/uploads/{name}", "name": name}
+    return {"url": f"/api/uploads/{name}", "name": name}
 
 
 @api.get("/admin/analytics")

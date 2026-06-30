@@ -11,7 +11,7 @@ export default function Products() {
   const [editing, setEditing] = useState(null);
   const [collections, setCollections] = useState([]);
 
-  const load = () => api.get("/products", { params: { limit: 500 } }).then(({ data }) => setItems(data));
+  const load = () => api.get("/admin/products", { params: { limit: 1000 } }).then(({ data }) => setItems(data));
   useEffect(() => { load(); api.get("/collections").then(({ data }) => setCollections(data)); }, []);
 
   const save = async () => {
